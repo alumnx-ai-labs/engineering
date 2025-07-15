@@ -1,0 +1,9 @@
+# /base-ml-models/linear-regression/requirements.txt
+
+pandas
+numpy
+matplotlib
+random
+
+# please use the following command to install:
+# pip install -r ./base-ml-models/linear-regression/requirements.txt
