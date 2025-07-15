@@ -1,0 +1,7 @@
+pandas
+numpy
+seaborn
+matplotlib
+scikit-learn
+# please use the following command to install:
+# pip install -r ./base-ml-models/random-forest/requirements.txt
