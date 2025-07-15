@@ -1,4 +1,0 @@
-.PHONY: run
-
-run-base-rf:
-    streamlit run base-ml-models/random-forest/main.py
