@@ -209,3 +209,4 @@ __marimo__/
 # ignore the following files
 base-ml-models/random-forest/unpublished_rf_streamlit.py
 yolov8n.pt
+mbart-finetuned-en-te/
