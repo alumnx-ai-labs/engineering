@@ -1,0 +1,5 @@
+langchain-google-genai
+langgraph
+tavily-python
+wikipedia
+python-dotenv
