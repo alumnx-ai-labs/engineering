@@ -122,7 +122,7 @@ REVISION_NEEDED: YES/NO"""
     # Parse review
     needs_revision = "REVISION_NEEDED: YES" in review
     score_line = [line for line in review.split('\n') if 'SCORE:' in line]
-    score = int(score_line[0].split('/')[0].split(':')[1].strip()) if score_line else 7
+    score = int(float(score_line[0].split('/')[0].split(':')[1].strip())) if score_line else 7
     
     print(f"   Quality Score: {score}/10")
     print(f"   Needs Revision: {needs_revision}")
