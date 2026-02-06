@@ -1,5 +1,5 @@
 langchain-google-genai
+langchain-core
 langgraph
 tavily-python
-wikipedia
 python-dotenv
