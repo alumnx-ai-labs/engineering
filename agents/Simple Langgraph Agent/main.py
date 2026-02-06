@@ -10,7 +10,7 @@ load_dotenv()
 
 # Initialize
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model="gemini-1.5-flash",  # Changed from gemini-2.5-flash
     temperature=0,
     google_api_key=os.getenv("GOOGLE_API_KEY")
 )
@@ -62,7 +62,7 @@ def convert_units(query: str) -> str:
             "billion_to_trillion": 0.001,
             "trillion_to_billion": 1000,
             "billion_to_million": 1000,
-            "usd_to_inr": 83,  # Approximate
+            "usd_to_inr": 83,
             "inr_to_usd": 0.012,
             "kilometers_to_miles": 0.621371,
             "miles_to_kilometers": 1.60934
@@ -92,11 +92,6 @@ agent_executor = create_react_agent(llm, tools)
 # Complex test queries
 if __name__ == "__main__":
     queries = [
-        # "What's the GDP difference between India and China in 2024?",
-        # "Find the population of USA and Russia, then calculate which is larger and by how much",
-        # "What is the GDP of Germany in 2024? Convert it from USD to INR",
-        # "Search for Apple's market cap and Tesla's market cap. Calculate the difference",
-        # "What's the distance between New York and London? Convert it to kilometers"
         "Which cities did Messi visit on his tour in India in December,2025 please?"
     ]
     
@@ -104,7 +99,6 @@ if __name__ == "__main__":
     for i, query in enumerate(queries, 1):
         print(f"\n🔍 QUERY {i}: {query}\n")
         
-        # Stream the agent's response
         for chunk in agent_executor.stream(
             {"messages": [("user", query)]},
             stream_mode="values"
