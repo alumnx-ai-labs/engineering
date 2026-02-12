@@ -1,0 +1,19 @@
+
+fastapi
+uvicorn
+
+# HTTP Client
+httpx
+
+# Data Validation
+pydantic
+pydantic-core
+
+# MCP Protocol (Model Context Protocol)
+mcp
+
+# Google Generative AI (Gemini)
+google-generativeai
+
+# Environment Configuration
+python-dotenv
