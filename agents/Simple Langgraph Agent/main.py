@@ -13,7 +13,7 @@ from langchain_core.tools import tool
 
 google_key = os.getenv("GOOGLE_API_KEY")
 
-# Define the tools
+# Define the tools for this agent
 @tool
 def BODMA(a: float, b: float) -> float:
     """
