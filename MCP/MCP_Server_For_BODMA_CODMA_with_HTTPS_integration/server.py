@@ -4,6 +4,7 @@ MCP Server for Calculator Tools (BODMA and CODMA)
 Compatible with latest MCP SDK
 """
 import json
+import sys
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
@@ -93,12 +94,13 @@ def calculate_codma(a: float, b: float) -> dict:
 # MCP SERVER
 # ============================================================================
 
-server = Server("calculator-server")
+server = Server("bodma-codma-mcp-server")
 
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """List available tools"""
+    print("📋 Listing available tools...", file=sys.stderr)
     return [
         types.Tool(
             name="bodma_calculate",
@@ -146,6 +148,8 @@ async def handle_call_tool(
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool execution"""
     
+    print(f"🔧 Tool called: {name} with arguments: {arguments}", file=sys.stderr)
+    
     if not arguments:
         arguments = {}
     
@@ -153,6 +157,7 @@ async def handle_call_tool(
         a = float(arguments.get("a", 0))
         b = float(arguments.get("b", 0))
         result = calculate_bodma(a, b)
+        print(f"✅ BODMA calculation completed: {result['status']}", file=sys.stderr)
         return [
             types.TextContent(
                 type="text",
@@ -164,6 +169,7 @@ async def handle_call_tool(
         a = float(arguments.get("a", 0))
         b = float(arguments.get("b", 0))
         result = calculate_codma(a, b)
+        print(f"✅ CODMA calculation completed: {result['status']}", file=sys.stderr)
         return [
             types.TextContent(
                 type="text",
@@ -172,21 +178,32 @@ async def handle_call_tool(
         ]
     
     else:
+        print(f"❌ Unknown tool: {name}", file=sys.stderr)
         raise ValueError(f"Unknown tool: {name}")
 
 
 async def main():
     """Main entry point for the server"""
+    print("🚀 Starting BODMA-CODMA MCP Server...", file=sys.stderr)
+    print("📡 Server name: bodma-codma-mcp-server", file=sys.stderr)
+    print("📌 Version: 1.0.0", file=sys.stderr)
+    print("⚙️  Available tools: bodma_calculate, codma_calculate", file=sys.stderr)
+    
     # Run the server using stdin/stdout streams
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+        print("✓ Stdio streams initialized", file=sys.stderr)
+        
         init_options = InitializationOptions(
-            server_name="calculator-server",
+            server_name="bodma-codma-mcp-server",
             server_version="1.0.0",
             capabilities=server.get_capabilities(
                 notification_options=NotificationOptions(),
                 experimental_capabilities={},
             )
         )
+        
+        print("✓ Server initialized successfully", file=sys.stderr)
+        print("👂 Listening for requests...\n", file=sys.stderr)
         
         await server.run(
             read_stream,
@@ -197,7 +214,6 @@ async def main():
 
 if __name__ == "__main__":
     import asyncio
-    import sys
     
     # Ensure output is not buffered
     sys.stdout.reconfigure(line_buffering=True)
