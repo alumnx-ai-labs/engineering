@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
 MCP Server for Calculator Tools (BODMA and CODMA)
-Compatible with latest MCP SDK
+FastAPI Implementation
 """
 import json
-import sys
-from mcp.server.models import InitializationOptions
-import mcp.types as types
-from mcp.server import NotificationOptions, Server
-import mcp.server.stdio
+from typing import Dict, Any, List
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import uvicorn
 
 # ============================================================================
 # TOOL IMPLEMENTATIONS
@@ -16,6 +15,7 @@ import mcp.server.stdio
 
 def calculate_bodma(a: float, b: float) -> dict:
     """BODMA Calculation: (a^b) / (a*b)"""
+    print(f"🧮 BODMA Calculation called with a={a}, b={b}")
     try:
         if a == 0 and b == 0:
             return {
@@ -54,6 +54,7 @@ def calculate_bodma(a: float, b: float) -> dict:
 
 def calculate_codma(a: float, b: float) -> dict:
     """CODMA Calculation: (a*b) / (a^b)"""
+    print(f"🧮 CODMA Calculation called with a={a}, b={b}")
     try:
         if a == 0 and b <= 0:
             return {
@@ -91,133 +92,102 @@ def calculate_codma(a: float, b: float) -> dict:
 
 
 # ============================================================================
-# MCP SERVER
+# PYDANTIC MODELS
 # ============================================================================
 
-server = Server("bodma-codma-mcp-server")
+class ToolCallRequest(BaseModel):
+    name: str
+    arguments: Dict[str, Any]
 
 
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
+# ============================================================================
+# FASTAPI APP
+# ============================================================================
+
+app = FastAPI(title="BODMA-CODMA MCP Server")
+
+
+@app.post("/tools/list")
+async def list_tools():
     """List available tools"""
-    print("📋 Listing available tools...", file=sys.stderr)
-    return [
-        types.Tool(
-            name="bodma_calculate",
-            description="Calculate (a^b) / (a*b) - BODMA calculation. Takes two numbers and returns the result.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "a": {
-                        "type": "number",
-                        "description": "First number (base)"
+    print("📋 /tools/list endpoint called")
+    tools = {
+        "tools": [
+            {
+                "name": "bodma_calculate",
+                "description": "Calculate (a^b) / (a*b) - BODMA calculation. Takes two numbers and returns the result.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "a": {
+                            "type": "number",
+                            "description": "First number (base)"
+                        },
+                        "b": {
+                            "type": "number",
+                            "description": "Second number (exponent)"
+                        }
                     },
-                    "b": {
-                        "type": "number",
-                        "description": "Second number (exponent)"
-                    }
-                },
-                "required": ["a", "b"]
-            }
-        ),
-        types.Tool(
-            name="codma_calculate",
-            description="Calculate (a*b) / (a^b) - CODMA calculation. Takes two numbers and returns the result.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "a": {
-                        "type": "number",
-                        "description": "First number (base)"
+                    "required": ["a", "b"]
+                }
+            },
+            {
+                "name": "codma_calculate",
+                "description": "Calculate (a*b) / (a^b) - CODMA calculation. Takes two numbers and returns the result.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "a": {
+                            "type": "number",
+                            "description": "First number (base)"
+                        },
+                        "b": {
+                            "type": "number",
+                            "description": "Second number (exponent)"
+                        }
                     },
-                    "b": {
-                        "type": "number",
-                        "description": "Second number (exponent)"
-                    }
-                },
-                "required": ["a", "b"]
+                    "required": ["a", "b"]
+                }
             }
-        )
-    ]
+        ]
+    }
+    print(f"✅ Returning {len(tools['tools'])} tools")
+    return tools
 
 
-@server.call_tool()
-async def handle_call_tool(
-    name: str, 
-    arguments: dict | None
-) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-    """Handle tool execution"""
+@app.post("/tools/call")
+async def call_tool(request: ToolCallRequest):
+    """Execute a tool"""
+    print(f"\n{'='*60}")
+    print(f"🔧 /tools/call endpoint called")
+    print(f"{'='*60}")
+    print(f"📝 Tool name: {request.name}")
+    print(f"📝 Arguments: {request.arguments}")
     
-    print(f"🔧 Tool called: {name} with arguments: {arguments}", file=sys.stderr)
+    tool_name = request.name
+    arguments = request.arguments
     
-    if not arguments:
-        arguments = {}
-    
-    if name == "bodma_calculate":
+    if tool_name == "bodma_calculate":
         a = float(arguments.get("a", 0))
         b = float(arguments.get("b", 0))
+        print(f"➡️  Calling BODMA with a={a}, b={b}")
         result = calculate_bodma(a, b)
-        print(f"✅ BODMA calculation completed: {result['status']}", file=sys.stderr)
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(result, indent=2)
-            )
-        ]
+        print(f"✅ BODMA result: {result}")
+        return {"result": result}
     
-    elif name == "codma_calculate":
+    elif tool_name == "codma_calculate":
         a = float(arguments.get("a", 0))
         b = float(arguments.get("b", 0))
+        print(f"➡️  Calling CODMA with a={a}, b={b}")
         result = calculate_codma(a, b)
-        print(f"✅ CODMA calculation completed: {result['status']}", file=sys.stderr)
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(result, indent=2)
-            )
-        ]
+        print(f"✅ CODMA result: {result}")
+        return {"result": result}
     
     else:
-        print(f"❌ Unknown tool: {name}", file=sys.stderr)
-        raise ValueError(f"Unknown tool: {name}")
-
-
-async def main():
-    """Main entry point for the server"""
-    print("🚀 Starting BODMA-CODMA MCP Server...", file=sys.stderr)
-    print("📡 Server name: bodma-codma-mcp-server", file=sys.stderr)
-    print("📌 Version: 1.0.0", file=sys.stderr)
-    print("⚙️  Available tools: bodma_calculate, codma_calculate", file=sys.stderr)
-    
-    # Run the server using stdin/stdout streams
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        print("✓ Stdio streams initialized", file=sys.stderr)
-        
-        init_options = InitializationOptions(
-            server_name="bodma-codma-mcp-server",
-            server_version="1.0.0",
-            capabilities=server.get_capabilities(
-                notification_options=NotificationOptions(),
-                experimental_capabilities={},
-            )
-        )
-        
-        print("✓ Server initialized successfully", file=sys.stderr)
-        print("👂 Listening for requests...\n", file=sys.stderr)
-        
-        await server.run(
-            read_stream,
-            write_stream,
-            init_options
-        )
+        print(f"❌ Unknown tool: {tool_name}")
+        raise HTTPException(status_code=404, detail=f"Unknown tool: {tool_name}")
 
 
 if __name__ == "__main__":
-    import asyncio
-    
-    # Ensure output is not buffered
-    sys.stdout.reconfigure(line_buffering=True)
-    sys.stderr.reconfigure(line_buffering=True)
-    
-    # Run the async main function
-    asyncio.run(main())
+    print("\n🚀 Starting MCP Server on port 8011...")
+    uvicorn.run(app, host="0.0.0.0", port=8011)
