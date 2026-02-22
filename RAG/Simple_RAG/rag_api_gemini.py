@@ -1,9 +1,9 @@
 """
 Simple RAG API with Gemini and Pinecone
-FastAPI application with file upload and query endpoints
+FastAPI application with hardcoded PDF ingestion and query endpoint
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict
 import os
@@ -11,7 +11,6 @@ from pinecone import Pinecone, ServerlessSpec
 import google.genai as genai
 from google.genai import types
 from PyPDF2 import PdfReader
-import docx
 import io
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
@@ -22,7 +21,7 @@ load_dotenv()
 # Initialize FastAPI
 app = FastAPI(
     title="RAG API with Gemini",
-    description="Upload documents and query them using Gemini AI",
+    description="Query documents using Gemini AI",
     version="1.0.0"
 )
 
@@ -32,6 +31,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 INDEX_NAME = "gemini-rag"
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
+
+# Hardcoded PDF path - change this to your PDF file path
+PDF_PATH = "PATH to leave_policy.pdf"
 
 if not PINECONE_API_KEY:
     raise ValueError("PINECONE_API_KEY environment variable not set")
@@ -84,35 +86,16 @@ class QueryResponse(BaseModel):
     answer: str
     sources: List[Dict]
 
-class UploadResponse(BaseModel):
-    message: str
-    filename: str
-    chunks_added: int
-
 # Helper functions
-def extract_text_from_file(file: UploadFile) -> str:
-    """Extract text from different file types"""
-    content = file.file.read()
-    
-    if file.filename.endswith('.txt'):
-        return content.decode('utf-8')
-    
-    elif file.filename.endswith('.pdf'):
-        pdf_reader = PdfReader(io.BytesIO(content))
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
-        return text
-    
-    elif file.filename.endswith('.docx'):
-        doc = docx.Document(io.BytesIO(content))
-        text = ""
-        for para in doc.paragraphs:
-            text += para.text + "\n"
-        return text
-    
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Use .txt, .pdf, or .docx")
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """Extract text from a PDF file path"""
+    with open(pdf_path, "rb") as f:
+        content = f.read()
+    pdf_reader = PdfReader(io.BytesIO(content))
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text() + "\n"
+    return text
 
 def chunk_text(text: str) -> List[str]:
     """Split text into chunks"""
@@ -146,6 +129,53 @@ def get_query_embedding(text: str) -> List[float]:
         print(f"Error generating query embedding: {e}")
         raise
 
+def ingest_pdf(pdf_path: str):
+    """Read PDF, chunk it, and upsert embeddings into Pinecone"""
+    print(f"Ingesting PDF: {pdf_path}")
+
+    text = extract_text_from_pdf(pdf_path)
+
+    if not text.strip():
+        raise ValueError(f"PDF '{pdf_path}' is empty or unreadable")
+
+    chunks = chunk_text(text)
+
+    if not chunks:
+        raise ValueError(f"No valid chunks created from '{pdf_path}'")
+
+    print(f"Processing {len(chunks)} chunks from {os.path.basename(pdf_path)}")
+
+    filename = os.path.basename(pdf_path)
+    vectors = []
+    for i, chunk in enumerate(chunks):
+        print(f"Generating embedding for chunk {i+1}/{len(chunks)}")
+        embedding = get_embedding(chunk)
+
+        vector_id = f"{filename}_{i}"
+        metadata = {
+            'text': chunk,
+            'filename': filename,
+            'chunk_index': i
+        }
+
+        vectors.append({
+            'id': vector_id,
+            'values': embedding,
+            'metadata': metadata
+        })
+
+    # Upsert to Pinecone in batches
+    batch_size = 100
+    for i in range(0, len(vectors), batch_size):
+        batch = vectors[i:i+batch_size]
+        index.upsert(vectors=batch)
+        print(f"Uploaded batch {i//batch_size + 1}")
+
+    print(f"Successfully ingested {len(chunks)} chunks from '{filename}'")
+
+# Ingest the hardcoded PDF on startup
+ingest_pdf(PDF_PATH)
+
 # API Endpoints
 @app.get("/")
 def read_root():
@@ -154,7 +184,6 @@ def read_root():
         "message": "RAG API with Gemini",
         "endpoints": {
             "docs": "/docs",
-            "upload": "/upload",
             "query": "/query",
             "health": "/health"
         }
@@ -175,65 +204,6 @@ def health_check():
             "status": "unhealthy",
             "error": str(e)
         }
-
-@app.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
-    """
-    Upload and process a document
-    
-    - **file**: Upload a .txt, .pdf, or .docx file
-    - Returns: Confirmation with number of chunks processed
-    """
-    try:
-        # Extract text from file
-        text = extract_text_from_file(file)
-        
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="File is empty or unreadable")
-        
-        # Chunk the text
-        chunks = chunk_text(text)
-        
-        if not chunks:
-            raise HTTPException(status_code=400, detail="No valid chunks created from file")
-        
-        print(f"Processing {len(chunks)} chunks from {file.filename}")
-        
-        # Create embeddings and store in Pinecone
-        vectors = []
-        for i, chunk in enumerate(chunks):
-            print(f"Generating embedding for chunk {i+1}/{len(chunks)}")
-            embedding = get_embedding(chunk)
-            
-            vector_id = f"{file.filename}_{i}"
-            metadata = {
-                'text': chunk,
-                'filename': file.filename,
-                'chunk_index': i
-            }
-            
-            vectors.append({
-                'id': vector_id,
-                'values': embedding,
-                'metadata': metadata
-            })
-        
-        # Upsert to Pinecone in batches
-        batch_size = 100
-        for i in range(0, len(vectors), batch_size):
-            batch = vectors[i:i+batch_size]
-            index.upsert(vectors=batch)
-            print(f"Uploaded batch {i//batch_size + 1}")
-        
-        return UploadResponse(
-            message="File uploaded and processed successfully",
-            filename=file.filename,
-            chunks_added=len(chunks)
-        )
-    
-    except Exception as e:
-        print(f"Error in upload_file: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
